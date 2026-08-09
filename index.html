@@ -100,6 +100,28 @@ main{
 .plan-head h2{margin:0;font-size:14px;font-weight:600;letter-spacing:.3em}
 .plan-head .meta{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);letter-spacing:.08em}
 
+/* ---------- brush bar ---------- */
+.brushbar{
+  display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+  margin:-6px 0 20px;padding-bottom:14px;border-bottom:1px dashed var(--rule-soft);
+}
+.brushbar .lbl{font-size:12px;letter-spacing:.22em;color:var(--ink-soft);flex:none}
+.brushbar .bsw{
+  width:30px;height:26px;border:1px solid var(--rule);border-radius:3px;padding:0;flex:none;
+  background:var(--surface);
+}
+.brushbar .bsw.none{
+  background:linear-gradient(45deg,transparent 45%,#C05B44 45%,#C05B44 55%,transparent 55%),var(--surface);
+}
+.brushbar .bsw[aria-pressed="true"]{box-shadow:0 0 0 2px var(--ink);border-color:var(--ink)}
+.brushbar .hint{font-size:12px;color:var(--ink-soft);letter-spacing:.02em}
+.brushbar .off{
+  border:1px solid var(--rule);border-radius:2px;background:var(--surface);
+  padding:5px 10px;font-size:12px;color:var(--ink);
+}
+.brushbar .off:hover{border-color:var(--ink)}
+.seats.brushing .seat{cursor:crosshair}
+
 /* ---------- floor plan ---------- */
 .plan{
   display:grid;
@@ -371,6 +393,7 @@ label.f{display:block;font-size:12px;color:var(--ink-soft);letter-spacing:.14em;
       <h2 id="planTitle">座位圖（正）</h2>
       <div class="meta" id="planMeta">39 SEATS</div>
     </div>
+    <div class="brushbar noprint" id="brushbar"></div>
     <div class="plan" id="plan"></div>
     <p class="scrollhint noprint">圖面可左右滑動</p>
 
@@ -489,9 +512,11 @@ var SEED_GREY = [13,14,20,26,34,39];
 var KEY = "seatmap.v1";
 var CFGKEY = "seatmap.cfg";
 var POLL_MS = 25000;
-var state = {view:"front", seats:{}, legend:{}, selected:null, query:"", cfg:{endpoint:"",token:"",me:""}};
-var pending = {};      // 已在本機改、還沒寫回試算表的座位
+var state = {view:"front", seats:{}, legend:{}, selected:null, query:"", brush:null, cfg:{endpoint:"",token:"",me:""}};
+var pending = {};        // 已在本機改、還沒寫回試算表的座位
+var pendingLegend = {};  // 同上，顏色說明
 var pushTimers = {};
+var seq = {};            // 每個座位的改動版本號，用來辨識回應是不是最新那筆
 
 /* ============ 連線層：Google 試算表 ============ */
 function online(){ return !!(state.cfg && state.cfg.endpoint); }
@@ -570,7 +595,9 @@ function applyRemote(data){
     if(state.seats[n]) next[n] = state.seats[n]; else delete next[n];
   });
   state.seats = next;
-  state.legend = data.legend || {};
+  var nextLegend = data.legend || {};
+  Object.keys(pendingLegend).forEach(function(h){ nextLegend[h] = state.legend[h]||""; });
+  state.legend = nextLegend;
   save();
   applyMarks();
   refreshDetail();
@@ -594,24 +621,32 @@ function pull(silent){
 function queuePush(n){
   if(!online()) return;
   pending[n] = true;
+  seq[n] = (seq[n]||0) + 1;
   setStatus("busy","儲存中…");
   clearTimeout(pushTimers[n]);
-  pushTimers[n] = setTimeout(function(){ sendSeat(n); }, 700);
+  pushTimers[n] = setTimeout(function(){ sendSeat(n, seq[n]); }, 700);
 }
-function sendSeat(n){
+function sendSeat(n, ver){
   var s = seatOf(n);
   call({action:"saveSeat", seat:Number(n), label:s.label, color:s.color, note:s.note, by:state.cfg.me||""})
-    .then(function(d){ delete pending[n]; applyRemote(d); setStatus("ok"); })
+    .then(function(d){
+      if(seq[n]===ver) delete pending[n];   // 期間又改過就繼續保護，別讓舊資料蓋回來
+      applyRemote(d); setStatus("ok");
+    })
     .catch(function(e){ setStatus("err", e.message); });
 }
-var legendTimer=null;
+var legendTimers = {};
+var legendSeq = {};
 function queueLegend(hex){
   if(!online()) return;
+  pendingLegend[hex] = true;
+  legendSeq[hex] = (legendSeq[hex]||0) + 1;
   setStatus("busy","儲存中…");
-  clearTimeout(legendTimer);
-  legendTimer = setTimeout(function(){
+  clearTimeout(legendTimers[hex]);          // 每個顏色各自計時，才不會互相取消
+  legendTimers[hex] = setTimeout(function(){
+    var ver = legendSeq[hex];
     call({action:"legend", hex:hex, text:state.legend[hex]||""})
-      .then(function(){ setStatus("ok"); })
+      .then(function(){ if(legendSeq[hex]===ver) delete pendingLegend[hex]; setStatus("ok"); })
       .catch(function(e){ setStatus("err", e.message); });
   }, 800);
 }
@@ -698,6 +733,30 @@ function colorName(hex){
   for(var i=0;i<PALETTE.length;i++){ if(PALETTE[i].hex.toLowerCase()===hex.toLowerCase()) return PALETTE[i].name; }
   return "自訂";
 }
+/* 只取使用者自訂的顏色說明（沒填就回空字串，不用「紅」「灰」這種預設色名） */
+function legendText(hex){
+  if(!hex) return "";
+  var t = state.legend[hex];
+  return (t==null ? "" : String(t)).trim();
+}
+/* 這段文字是不是之前自動帶入的？是的話才可以覆蓋，避免蓋掉真的姓名 */
+function isAutoLabel(text){
+  text = (text||"").trim();
+  if(!text) return false;
+  return Object.keys(state.legend).some(function(h){
+    var t = legendText(h);
+    return t && t===text;
+  });
+}
+
+/* 上色（含自動帶入顏色說明），筆刷和右側調色盤共用 */
+function applyColor(n,hex){
+  var patch = {color:hex};
+  var cur = (seatOf(n).label||"").trim();
+  if(!cur || isAutoLabel(cur)) patch.label = hex ? legendText(hex) : "";
+  setSeat(n,patch);
+}
+
 function legendLabel(hex){
   if(state.legend[hex]!=null && state.legend[hex]!=="") return state.legend[hex];
   return colorName(hex);
@@ -779,7 +838,9 @@ function seatBtn(n){
   b.appendChild(el("span","no",String(n)));
   b.appendChild(el("span","nm",""));
   b.appendChild(el("span","dot"));
-  b.addEventListener("click",function(){ select(n); });
+  b.addEventListener("click",function(){
+    if(state.brush!=null) paint(n); else select(n);
+  });
   return b;
 }
 
@@ -804,8 +865,49 @@ function applyMarks(){
   });
   var marked = Object.keys(state.seats).filter(function(k){ return state.seats[k].color; }).length;
   document.getElementById("planMeta").textContent = "已標記 "+marked+" / 39";
+  var grid = document.getElementById("seats");
+  if(grid) grid.classList.toggle("brushing", state.brush!=null);
   renderLegend();
   renderNotes();
+}
+
+/* ============ 筆刷 ============ */
+function paint(n){
+  var cur = seatOf(n).color||"";
+  var hex = (cur===state.brush) ? "" : state.brush;   // 同色再點一次＝取消
+  applyColor(n,hex);
+  state.selected = Number(n);
+  renderDetail(); applyMarks();
+}
+
+function renderBrush(){
+  var bar = document.getElementById("brushbar");
+  bar.innerHTML="";
+  bar.appendChild(el("span","lbl","筆刷"));
+
+  PALETTE.forEach(function(p){
+    var b = el("button","bsw"+(p.hex?"":" none"));
+    b.type="button";
+    b.title = p.hex ? (legendText(p.hex)||p.name) : "清除顏色";
+    b.setAttribute("aria-label", b.title);
+    if(p.hex) b.style.background = p.hex;
+    b.setAttribute("aria-pressed", String(state.brush===p.hex));
+    b.addEventListener("click",function(){
+      state.brush = (state.brush===p.hex) ? null : p.hex;
+      renderBrush(); applyMarks();
+    });
+    bar.appendChild(b);
+  });
+
+  if(state.brush!=null){
+    var off = el("button","off","關閉筆刷");
+    off.type="button";
+    off.addEventListener("click",function(){ state.brush=null; renderBrush(); applyMarks(); });
+    bar.appendChild(off);
+    bar.appendChild(el("span","hint","點座位直接上色，同一格再點一次可取消"));
+  }else{
+    bar.appendChild(el("span","hint","選一個顏色，就能連續點座位上色"));
+  }
 }
 
 /* ============ 右側：座位資料 ============ */
@@ -815,7 +917,7 @@ function select(n){
   applyMarks();
   var b = document.querySelector('.seat[data-no="'+n+'"]');
   if(b) b.focus({preventScroll:true});
-  if(window.matchMedia && window.matchMedia("(max-width:1000px)").matches){
+  if(state.brush==null && window.matchMedia && window.matchMedia("(max-width:1000px)").matches){
     var card = document.getElementById("detail");
     if(card && card.parentNode) card.parentNode.scrollIntoView({behavior:"smooth",block:"start"});
   }
@@ -860,9 +962,9 @@ function renderDetail(){
     if(p.hex) b.style.background=p.hex;
     b.setAttribute("aria-pressed", String((s.color||"")===p.hex));
     b.addEventListener("click",function(){
-      setSeat(n,{color:p.hex});
+      applyColor(n,p.hex);
       renderDetail(); applyMarks();
-      toast(p.hex? "已標記 "+p.name : "已清除顏色");
+      toast(p.hex? "已標記 "+(legendText(p.hex)||p.name) : "已清除顏色");
     });
     sw.appendChild(b);
   });
@@ -1155,11 +1257,11 @@ function startPolling(){
   setInterval(function(){
     if(!online()) return;
     if(document.hidden) return;
-    if(Object.keys(pending).length) return;
+    if(Object.keys(pending).length || Object.keys(pendingLegend).length) return;
     pull(true);
   }, POLL_MS);
   window.addEventListener("focus",function(){
-    if(online() && !Object.keys(pending).length) pull(true);
+    if(online() && !Object.keys(pending).length && !Object.keys(pendingLegend).length) pull(true);
   });
 }
 
@@ -1167,6 +1269,7 @@ loadCfg();
 load().then(function(){
   bind();
   applyAdminMode();
+  renderBrush();
   renderPlan();
   renderDetail();
   setStatus();
