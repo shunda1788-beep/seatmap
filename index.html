@@ -357,7 +357,7 @@ label.f{display:block;font-size:12px;color:var(--ink-soft);letter-spacing:.14em;
     <input type="search" id="search" placeholder="搜尋姓名或備註" aria-label="搜尋姓名或備註">
     <button type="button" class="btn" id="btnCsv">匯出 CSV</button>
     <button type="button" class="btn" id="btnJson">備份檔</button>
-    <label class="btn filebtn">還原備份<input type="file" id="fileJson" accept=".json,application/json"></label>
+    <label class="btn filebtn" id="lblRestore">還原備份<input type="file" id="fileJson" accept=".json,application/json"></label>
     <button type="button" class="btn" id="btnPrint">列印</button>
     <button type="button" class="btn danger" id="btnClear">全部清除</button>
     <span class="pill" id="pill" data-s="off" title="連線狀態"><span class="led"></span><span id="pillText">離線使用</span></span>
@@ -495,6 +495,22 @@ var pushTimers = {};
 
 /* ============ 連線層：Google 試算表 ============ */
 function online(){ return !!(state.cfg && state.cfg.endpoint); }
+
+/* 管理模式：網址加上 ?admin=1 才會出現「還原備份／全部清除／連線設定」 */
+var isAdmin = (function(){
+  try{ return new URLSearchParams(location.search).get("admin")==="1"; }catch(e){ return false; }
+})();
+function applyAdminMode(){
+  if(isAdmin){
+    var sub = document.querySelector(".brand .sub");
+    if(sub && sub.textContent.indexOf("管理模式")<0) sub.textContent += " · 管理模式";
+    return;
+  }
+  ["lblRestore","btnClear","btnLink"].forEach(function(id){
+    var n = document.getElementById(id);
+    if(n) n.style.display = "none";
+  });
+}
 function pad2(n){ return (n<10?"0":"")+n; }
 
 function loadCfg(){
@@ -1076,7 +1092,8 @@ function readDialog(){
 function bindDialog(){
   document.getElementById("btnLink").addEventListener("click",openDialog);
   document.getElementById("pill").addEventListener("click",function(){
-    if(online()) pull(); else openDialog();
+    if(online()) pull();
+    else if(isAdmin) openDialog();
   });
   document.getElementById("cfgClose").addEventListener("click",closeDialog);
   document.getElementById("mask").addEventListener("click",function(e){
@@ -1149,6 +1166,7 @@ function startPolling(){
 loadCfg();
 load().then(function(){
   bind();
+  applyAdminMode();
   renderPlan();
   renderDetail();
   setStatus();
