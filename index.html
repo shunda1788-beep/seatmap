@@ -403,7 +403,7 @@ label.f{display:block;font-size:12px;color:var(--ink-soft);letter-spacing:.14em;
 <div class="mask noprint" id="mask">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
     <h2 id="dlgTitle">連線設定</h2>
-    <p class="lead">連上 Google 試算表之後，所有人開同一個網址就會看到同一份資料，誰改了什麼大家都同步得到。留白則維持單機使用。</p>
+    <p class="lead">這份檔案已經內建試算表網址，正常情況不用動這裡。改成別份試算表或想單機使用時才需要調整。</p>
 
     <label class="f" for="cfgUrl">網頁應用程式網址</label>
     <input type="url" id="cfgUrl" placeholder="https://script.google.com/macros/s/..../exec" spellcheck="false">
@@ -431,6 +431,14 @@ label.f{display:block;font-size:12px;color:var(--ink-soft);letter-spacing:.14em;
 <script>
 (function(){
 "use strict";
+
+/* ================================================================
+   內建連線設定 —— 要換試算表時改這裡就好
+   BUILTIN_API：Apps Script 部署後的網址（結尾 /exec），留空 "" 則預設單機
+   BUILTIN_TOKEN：Code.gs 裡設的通行碼，沒設就留空 ""
+   ================================================================ */
+var BUILTIN_API   = "https://script.google.com/macros/s/AKfycby8A_k92ttuqm0zm2kNY0MbfL90LwjDcww2fOYmj6lHqPHs-VK6ARFLXv9Yu2ez16H8/exec";
+var BUILTIN_TOKEN = "";
 
 /* ============ 座位配置 ============
    來源：座位圖.xlsm 的「座位圖(正)」「座位圖(反)」。
@@ -490,9 +498,13 @@ function online(){ return !!(state.cfg && state.cfg.endpoint); }
 function pad2(n){ return (n<10?"0":"")+n; }
 
 function loadCfg(){
-  var c = {endpoint:"",token:"",me:""};
+  var c = {endpoint:"",token:"",me:"",manual:false};
   try{ c = Object.assign(c, JSON.parse(localStorage.getItem(CFGKEY)||"{}")); }catch(e){}
-  try{
+  if(!c.manual){                       // 使用者沒自己動過設定，就用檔案裡寫好的
+    if(BUILTIN_API) c.endpoint = BUILTIN_API;
+    if(BUILTIN_TOKEN) c.token = BUILTIN_TOKEN;
+  }
+  try{                                 // 網址參數優先，方便臨時指向別份試算表
     var q = new URLSearchParams(location.search);
     if(q.get("api")) c.endpoint = q.get("api");
     if(q.get("token")) c.token = q.get("token");
@@ -1041,7 +1053,7 @@ function bind(){
 
 /* ============ 連線設定視窗 ============ */
 function openDialog(){
-  document.getElementById("cfgUrl").value = state.cfg.endpoint||"";
+  document.getElementById("cfgUrl").value = state.cfg.endpoint || BUILTIN_API || "";
   document.getElementById("cfgToken").value = state.cfg.token||"";
   document.getElementById("cfgMe").value = state.cfg.me||"";
   msg("");
@@ -1058,6 +1070,7 @@ function readDialog(){
   state.cfg.endpoint = document.getElementById("cfgUrl").value.trim();
   state.cfg.token = document.getElementById("cfgToken").value.trim();
   state.cfg.me = document.getElementById("cfgMe").value.trim();
+  state.cfg.manual = true;
   saveCfg();
 }
 function bindDialog(){
@@ -1113,7 +1126,7 @@ function bindDialog(){
   });
 
   document.getElementById("cfgOff").addEventListener("click",function(){
-    state.cfg.endpoint=""; saveCfg();
+    state.cfg.endpoint=""; state.cfg.manual=true; saveCfg();
     document.getElementById("cfgUrl").value="";
     setStatus();
     msg("已改回單機使用，資料只留在這台裝置。");
