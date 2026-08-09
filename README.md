@@ -11,6 +11,7 @@
 - 顏色說明可自訂命名，並在上色時自動帶入座位標籤
 - 座位可填姓名與備註，改動自動儲存
 - 多人即時同步，以座位為單位處理衝突
+- 關鍵字搜尋姓名與備註
 - CSV 匯出、JSON 備份還原、列印（附備註一覽）
 - `?admin=1` 才顯示管理功能，避免誤觸
 
@@ -23,14 +24,29 @@
 | 資料 | Google 試算表 |
 | 部署 | GitHub Pages |
 
-改動後 0.7 秒寫回試算表，每 25 秒輪詢更新；分頁隱藏時暫停輪詢以節省 Apps Script 免費額度。
+改動後 0.7 秒寫回試算表，每 25 秒輪詢更新；分頁隱藏時暫停輪詢以節省 Apps Script 免費額度。同時加入版本號機制，避免舊回應覆蓋新改動。
 
 ## 檔案
 
 - `index.html` — 網頁本體，開頭 `BUILTIN_API` 設定試算表網址
 - `Code.gs` — Apps Script 後端程式碼
 - `setup-guide.md` — 建置與部署說明
+- `seatmap-local.html` — 單機版（不連線，資料只存在瀏覽器）
 
 ## 設定
 
 見 [setup-guide.md](setup-guide.md)。
+
+要換成別份試算表時，修改 `index.html` 開頭的：
+
+```js
+var BUILTIN_API   = "https://script.google.com/macros/s/..../exec";
+var BUILTIN_TOKEN = "";
+```
+
+也可用網址參數臨時指向其他試算表：`?api=<exec 網址>`。
+
+## 備份
+
+- **程式**：本 repo
+- **資料**：座位的顏色與備註存在 Google 試算表，請定期用網頁上的「備份檔」下載 JSON 留存
