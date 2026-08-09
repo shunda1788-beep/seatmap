@@ -1,0 +1,1148 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>座位圖</title>
+<style>
+:root{
+  --paper:#EDF0F2;
+  --surface:#FFFFFF;
+  --ink:#1B2A33;
+  --ink-soft:#5C6F7A;
+  --rule:#C3CDD3;
+  --rule-soft:#DCE3E7;
+  --accent:#17505C;
+  --wall:#8A6A55;
+  --wall-tint:#F6E4D9;
+  --win:#5B87C4;
+  --win-tint:#DCE8F8;
+  --zone:#9A6B80;
+  --zone-tint:#F1DDE5;
+  --door:#6E7276;
+  --seat-w:76px;
+  --seat-h:52px;
+  --aisle:26px;
+  --aisle-h:22px;
+  --sans:"PingFang TC","Hiragino Sans CNS","Microsoft JhengHei","Noto Sans TC","Heiti TC",system-ui,sans-serif;
+  --mono:ui-monospace,"SFMono-Regular","JetBrains Mono","Roboto Mono","DejaVu Sans Mono",Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper);
+  background-image:linear-gradient(var(--rule-soft) 1px,transparent 1px),linear-gradient(90deg,var(--rule-soft) 1px,transparent 1px);
+  background-size:22px 22px;
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-text-size-adjust:100%;
+}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:sticky;top:0;z-index:20;
+  display:flex;flex-wrap:wrap;gap:14px 20px;align-items:flex-end;
+  padding:14px 22px;
+  background:rgba(237,240,242,.92);
+  backdrop-filter:blur(6px);
+  border-bottom:1px solid var(--rule);
+}
+.brand h1{
+  margin:0;font-size:20px;font-weight:700;letter-spacing:.24em;
+}
+.brand .sub{margin:2px 0 0;font-size:12.5px;color:var(--ink-soft);letter-spacing:.06em}
+.spacer{flex:1 1 auto}
+
+.viewtoggle{display:flex;border:1px solid var(--ink);border-radius:2px;overflow:hidden}
+.viewtoggle button{
+  background:transparent;border:0;padding:7px 15px;font-size:13.5px;letter-spacing:.12em;
+  color:var(--ink);
+}
+.viewtoggle button+button{border-left:1px solid var(--ink)}
+.viewtoggle button[aria-selected="true"]{background:var(--ink);color:#fff}
+
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tools input[type=search]{
+  width:170px;padding:7px 10px;border:1px solid var(--rule);border-radius:2px;background:var(--surface);
+}
+.tools input[type=search]:focus{outline:2px solid var(--accent);outline-offset:1px}
+.btn{
+  background:var(--surface);border:1px solid var(--rule);border-radius:2px;
+  padding:7px 12px;font-size:13px;letter-spacing:.04em;color:var(--ink);
+}
+.btn:hover{border-color:var(--ink)}
+.btn.danger:hover{border-color:#B3402A;color:#B3402A}
+.filebtn{position:relative;overflow:hidden;display:inline-block}
+.filebtn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+
+/* ---------- layout ---------- */
+main{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 330px;
+  gap:26px;
+  padding:26px 22px 70px;
+  align-items:start;
+}
+.planwrap{
+  background:var(--surface);
+  border:1px solid var(--rule);
+  padding:26px 22px;
+  overflow-x:auto;
+}
+.plan-head{
+  display:flex;justify-content:space-between;align-items:baseline;
+  border-bottom:1px solid var(--ink);padding-bottom:8px;margin-bottom:22px;
+}
+.plan-head h2{margin:0;font-size:14px;font-weight:600;letter-spacing:.3em}
+.plan-head .meta{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);letter-spacing:.08em}
+
+/* ---------- floor plan ---------- */
+.plan{
+  display:grid;
+  grid-template-columns:auto auto auto;
+  grid-template-rows:auto auto auto;
+  gap:10px;
+  width:max-content;
+  margin:0 auto;
+}
+.corner{}
+.edge{display:flex}
+.edge.v{flex-direction:column;width:40px;gap:6px}
+.edge.h{flex-direction:row;gap:6px;min-height:0}
+.seg{
+  display:flex;align-items:center;justify-content:center;
+  font-size:12.5px;letter-spacing:.28em;border-radius:1px;
+}
+.edge.v .seg{writing-mode:vertical-rl;text-orientation:upright;letter-spacing:.22em}
+
+.seg.wall{background:var(--wall-tint);color:var(--wall);border:1px solid #E0C4B2;
+  background-image:repeating-linear-gradient(45deg,rgba(138,106,85,.18) 0 1px,transparent 1px 6px)}
+.seg.window{background:var(--win-tint);color:#3E6494;border:1px solid #BBD0EC;position:relative}
+.seg.window::before,.seg.window::after{
+  content:"";position:absolute;background:#8FB0DC;
+}
+.edge.v .seg.window::before{left:8px;top:6px;bottom:6px;width:1px}
+.edge.v .seg.window::after{right:8px;top:6px;bottom:6px;width:1px}
+.edge.h .seg.window::before{top:8px;left:6px;right:6px;height:1px}
+.edge.h .seg.window::after{bottom:8px;left:6px;right:6px;height:1px}
+.seg.pillar{background:#E4D6CC;color:#7A5945;border:1px solid #CDB6A5;letter-spacing:.02em;font-size:11.5px;
+  background-image:repeating-linear-gradient(45deg,rgba(122,89,69,.35) 0 2px,transparent 2px 5px)}
+.seg.door{background:#DDE1E4;color:#4C5257;border:1px solid #BCC3C8;position:relative;gap:6px}
+.seg.door .arc{width:14px;height:14px;border:1px solid #6E7276;border-radius:0 0 0 100%;border-top:0;border-right:0;flex:none}
+.edge.v .seg.door .arc{margin-top:4px}
+
+.zonerow{
+  display:grid;
+  grid-template-columns:repeat(3,var(--seat-w)) var(--aisle) repeat(3,var(--seat-w));
+  gap:8px;min-height:30px;
+}
+.zone{
+  display:flex;align-items:center;justify-content:center;
+  background:var(--zone-tint);color:var(--zone);border:1px solid #E3C3D1;
+  font-size:12.5px;letter-spacing:.24em;border-radius:1px;
+}
+.zone.left{grid-column:1 / span 3}
+.zone.right{grid-column:5 / span 3}
+
+/* ---------- seats ---------- */
+.seats{
+  display:grid;
+  grid-template-columns:repeat(3,var(--seat-w)) var(--aisle) repeat(3,var(--seat-w));
+  gap:8px;
+}
+.gap{grid-column:1 / -1;height:var(--aisle-h)}
+.blank{}
+.seat{
+  position:relative;
+  height:var(--seat-h);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:1px;
+  background:var(--surface);
+  border:1px solid var(--rule);
+  border-radius:5px;
+  padding:2px 4px;
+  transition:transform .12s ease,box-shadow .12s ease,opacity .15s ease;
+}
+.seat .no{font-family:var(--mono);font-size:16px;font-weight:600;line-height:1;letter-spacing:.02em}
+.seat .nm{
+  font-size:11px;line-height:1.15;max-width:100%;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.85;
+}
+.seat .dot{
+  position:absolute;top:4px;right:5px;width:6px;height:6px;border-radius:50%;
+  background:currentColor;opacity:.75;
+}
+.seat:hover{transform:translateY(-1px);box-shadow:0 2px 0 rgba(27,42,51,.18)}
+.seat:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.seat[aria-pressed="true"]{
+  box-shadow:0 0 0 2px var(--ink);
+}
+.seat.dim{opacity:.28}
+.seat.hit{box-shadow:0 0 0 2px var(--accent)}
+
+/* ---------- side ---------- */
+.side{display:flex;flex-direction:column;gap:18px}
+.card{background:var(--surface);border:1px solid var(--rule);padding:16px 16px 18px}
+.card h3{
+  margin:0 0 12px;font-size:12px;font-weight:700;letter-spacing:.26em;color:var(--ink-soft);
+  border-bottom:1px solid var(--rule-soft);padding-bottom:8px;
+}
+.empty{color:var(--ink-soft);font-size:13.5px;margin:0}
+
+.seathead{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.seatchip{
+  width:52px;height:40px;border:1px solid var(--rule);border-radius:5px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:18px;font-weight:600;flex:none;
+}
+.seathead .cap{font-size:12px;color:var(--ink-soft);letter-spacing:.14em}
+
+label.f{display:block;font-size:12px;color:var(--ink-soft);letter-spacing:.14em;margin:12px 0 5px}
+.side input[type=text],.side textarea{
+  width:100%;padding:8px 10px;border:1px solid var(--rule);border-radius:2px;background:#FBFCFC;
+}
+.side textarea{min-height:88px;resize:vertical;line-height:1.5}
+.side input[type=text]:focus,.side textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+
+.swatches{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-top:6px}
+.sw{
+  height:30px;border:1px solid var(--rule);border-radius:3px;position:relative;
+}
+.sw[aria-pressed="true"]{box-shadow:0 0 0 2px var(--ink);border-color:var(--ink)}
+.sw.none{background:
+  linear-gradient(45deg,transparent 45%,#C05B44 45%,#C05B44 55%,transparent 55%),var(--surface)}
+.sw.custom{display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--ink-soft);background:var(--surface);overflow:hidden}
+.sw.custom input{position:absolute;inset:0;opacity:0;cursor:pointer;padding:0;border:0}
+
+.rowbtns{display:flex;gap:8px;margin-top:14px}
+.rowbtns .btn{flex:1;text-align:center}
+
+/* legend */
+.legend{display:flex;flex-direction:column;gap:6px}
+.lg{display:flex;align-items:center;gap:9px}
+.lg .chip{width:20px;height:20px;border:1px solid var(--rule);border-radius:3px;flex:none}
+.lg input{
+  flex:1;min-width:0;border:0;border-bottom:1px dashed var(--rule);background:transparent;
+  padding:3px 2px;font-size:13px;
+}
+.lg input:focus{outline:0;border-bottom-color:var(--accent)}
+.lg .n{font-family:var(--mono);font-size:12px;color:var(--ink-soft);min-width:22px;text-align:right}
+
+/* notes list */
+.notes{display:flex;flex-direction:column;gap:0;max-height:320px;overflow:auto}
+.nt{
+  display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;
+  background:transparent;border:0;border-bottom:1px solid var(--rule-soft);padding:9px 2px;
+}
+.nt:hover{background:#F5F8F9}
+.nt .nno{
+  font-family:var(--mono);font-size:12px;font-weight:600;flex:none;
+  width:30px;height:22px;display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--rule);border-radius:3px;
+}
+.nt .ntx{font-size:12.5px;line-height:1.45;min-width:0}
+.nt .ntx b{display:block;font-size:13px;font-weight:600}
+.nt .ntx span{color:var(--ink-soft);display:block;white-space:pre-wrap;word-break:break-word}
+
+/* toast */
+.toast{
+  position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);
+  background:var(--ink);color:#fff;padding:9px 18px;border-radius:2px;
+  font-size:13px;letter-spacing:.1em;opacity:0;pointer-events:none;transition:.22s ease;z-index:60;
+}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* sync pill + dialog */
+.pill{
+  display:inline-flex;align-items:center;gap:7px;
+  border:1px solid var(--rule);border-radius:999px;background:var(--surface);
+  padding:6px 13px 6px 11px;font-size:12.5px;letter-spacing:.06em;color:var(--ink-soft);
+}
+.pill .led{width:8px;height:8px;border-radius:50%;background:#B4BEC4;flex:none}
+.pill[data-s="ok"]{color:#1F6B4A;border-color:#B9D9C8}
+.pill[data-s="ok"] .led{background:#2FA36B}
+.pill[data-s="busy"]{color:#8A6B1F;border-color:#E2D3A8}
+.pill[data-s="busy"] .led{background:#E0A82E;animation:blink 1s ease-in-out infinite}
+.pill[data-s="err"]{color:#9A3520;border-color:#E3BDB2}
+.pill[data-s="err"] .led{background:#C0472B}
+@keyframes blink{50%{opacity:.25}}
+
+.mask{
+  position:fixed;inset:0;background:rgba(27,42,51,.42);z-index:80;
+  display:none;align-items:center;justify-content:center;padding:20px;
+}
+.mask.on{display:flex}
+.modal{
+  background:var(--surface);border:1px solid var(--ink);width:min(520px,100%);
+  max-height:88vh;overflow:auto;padding:22px 22px 20px;
+}
+.modal h2{margin:0 0 4px;font-size:15px;letter-spacing:.2em}
+.modal .lead{margin:0 0 16px;font-size:13px;color:var(--ink-soft);line-height:1.6}
+.modal label.f{margin-top:14px}
+.modal input[type=text],.modal input[type=url]{
+  width:100%;padding:9px 11px;border:1px solid var(--rule);border-radius:2px;background:#FBFCFC;
+  font-family:var(--mono);font-size:12.5px;
+}
+.modal input.plain{font-family:var(--sans);font-size:15px}
+.modal input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.modal .hint{font-size:12px;color:var(--ink-soft);margin:5px 0 0;line-height:1.55}
+.modal .acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.modal .acts .grow{flex:1 1 auto}
+.modal .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+.modal .msg{margin-top:14px;font-size:12.5px;line-height:1.6;padding:10px 12px;border-radius:2px;display:none}
+.modal .msg.on{display:block}
+.modal .msg.good{background:#E8F3ED;color:#1F6B4A}
+.modal .msg.bad{background:#FBEAE5;color:#9A3520}
+
+.meta-by{font-size:11.5px;color:var(--ink-soft);margin-top:10px;letter-spacing:.04em}
+
+/* print appendix (screen: hidden) */
+.printonly{display:none}
+
+@media (max-width:1000px){
+  main{grid-template-columns:minmax(0,1fr)}
+  .side{order:2}
+}
+@media (max-width:560px){
+  :root{--seat-w:50px;--seat-h:44px;--aisle:14px}
+  .topbar{padding:12px 14px}
+  main{padding:16px 12px 60px;gap:16px}
+  .planwrap{padding:16px 12px}
+  .seats,.zonerow{gap:6px}
+  .edge.v{width:28px}
+  .plan{gap:8px}
+  .seat .no{font-size:15px}
+  .tools input[type=search]{width:100%}
+  .planwrap .scrollhint{display:block}
+}
+.scrollhint{
+  display:none;margin:14px 0 0;text-align:center;
+  font-size:11.5px;letter-spacing:.14em;color:var(--ink-soft);
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+}
+@media print{
+  body{background:#fff}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  .topbar,.side,.toast,.noprint{display:none!important}
+  main{display:block;padding:0}
+  .planwrap{border:0;padding:0;overflow:visible}
+  .printonly{display:block;margin-top:26px;page-break-inside:auto}
+  .printonly h3{font-size:13px;letter-spacing:.2em;border-bottom:1px solid #000;padding-bottom:6px}
+  .printonly table{width:100%;border-collapse:collapse;font-size:12px}
+  .printonly td,.printonly th{border:1px solid #999;padding:5px 7px;text-align:left;vertical-align:top}
+  .seat{box-shadow:none!important}
+  @page{margin:14mm}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <h1>座位圖</h1>
+    <p class="sub">39 席 · 點座位標記顏色、填寫姓名與備註 · 可連線共用</p>
+  </div>
+  <div class="spacer"></div>
+  <div class="viewtoggle" role="tablist" aria-label="視角">
+    <button type="button" role="tab" data-view="front" aria-selected="true">座位圖（正）</button>
+    <button type="button" role="tab" data-view="back" aria-selected="false">座位圖（反）</button>
+  </div>
+  <div class="tools">
+    <input type="search" id="search" placeholder="搜尋姓名或備註" aria-label="搜尋姓名或備註">
+    <button type="button" class="btn" id="btnCsv">匯出 CSV</button>
+    <button type="button" class="btn" id="btnJson">備份檔</button>
+    <label class="btn filebtn">還原備份<input type="file" id="fileJson" accept=".json,application/json"></label>
+    <button type="button" class="btn" id="btnPrint">列印</button>
+    <button type="button" class="btn danger" id="btnClear">全部清除</button>
+    <span class="pill" id="pill" data-s="off" title="連線狀態"><span class="led"></span><span id="pillText">離線使用</span></span>
+    <button type="button" class="btn" id="btnLink">連線設定</button>
+  </div>
+</header>
+
+<main>
+  <section class="planwrap">
+    <div class="plan-head">
+      <h2 id="planTitle">座位圖（正）</h2>
+      <div class="meta" id="planMeta">39 SEATS</div>
+    </div>
+    <div class="plan" id="plan"></div>
+    <p class="scrollhint noprint">圖面可左右滑動</p>
+
+    <div class="printonly">
+      <h3>備註一覽</h3>
+      <table id="printTable"><tbody></tbody></table>
+    </div>
+  </section>
+
+  <aside class="side">
+    <div class="card">
+      <h3>座位資料</h3>
+      <div id="detail">
+        <p class="empty">還沒選座位。點一下圖上的號碼就能開始標記。</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>顏色說明</h3>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <div class="card">
+      <h3>備註一覽</h3>
+      <div class="notes" id="noteList"></div>
+    </div>
+  </aside>
+</main>
+
+<div class="mask noprint" id="mask">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+    <h2 id="dlgTitle">連線設定</h2>
+    <p class="lead">連上 Google 試算表之後，所有人開同一個網址就會看到同一份資料，誰改了什麼大家都同步得到。留白則維持單機使用。</p>
+
+    <label class="f" for="cfgUrl">網頁應用程式網址</label>
+    <input type="url" id="cfgUrl" placeholder="https://script.google.com/macros/s/..../exec" spellcheck="false">
+    <p class="hint">在 Apps Script 按「部署 → 新增部署作業 → 網頁應用程式」後取得，結尾是 /exec。</p>
+
+    <label class="f" for="cfgToken">通行碼（選填）</label>
+    <input type="text" id="cfgToken" placeholder="沒設定就留空" spellcheck="false">
+
+    <label class="f" for="cfgMe">你的名字</label>
+    <input type="text" id="cfgMe" class="plain" placeholder="會記在「更新者」欄，方便追查">
+
+    <div class="msg" id="cfgMsg"></div>
+
+    <div class="acts">
+      <button type="button" class="btn primary grow" id="cfgSave">儲存並連線</button>
+      <button type="button" class="btn" id="cfgUpload">上傳目前這台的資料</button>
+      <button type="button" class="btn" id="cfgOff">改回單機</button>
+      <button type="button" class="btn" id="cfgClose">關閉</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============ 座位配置 ============
+   來源：座位圖.xlsm 的「座位圖(正)」「座位圖(反)」。
+   兩張圖是同一間辦公室的兩個方向（反 = 正旋轉 180°），
+   所以資料只存一份，兩邊同步。 */
+
+var ROWS = [                       // 正視角，由上到下；每列左區3席 + 右區3席
+  [6,5,4,   3,2,1],
+  [12,11,10, 9,8,7],
+  [18,17,16, 15,14,13],
+  [24,23,22, 21,20,19],
+  [30,29,28, 27,26,25],
+  [36,35,34, 33,32,31],
+  [null,null,null, 39,38,37]
+];
+var GAP_AFTER_FRONT = [0,2,4];     // 走道位置（正）
+
+var EDGES = {
+  front:{
+    left:[{t:"wall",x:"牆 壁",f:7.9},{t:"door",x:"大 門",f:2.1}],
+    right:[{t:"window",x:"窗 戶",f:4.2},{t:"pillar",x:"柱子",f:1.9},{t:"window",x:"窗 戶",f:4.6}],
+    top:[{side:"left",x:"主管位置"},{side:"right",x:"行政位置"}],
+    bottom:[]
+  },
+  back:{
+    left:[{t:"window",x:"窗 戶",f:4.6},{t:"pillar",x:"柱子",f:1.9},{t:"window",x:"窗 戶",f:4.2}],
+    right:[{t:"door",x:"大 門",f:2.1},{t:"wall",x:"牆 壁",f:7.9}],
+    top:[],
+    bottom:[{side:"left",x:"行政位置"},{side:"right",x:"主管位置"}]
+  }
+};
+
+var PALETTE = [
+  {hex:"",        name:"無標記"},
+  {hex:"#A6A6A6", name:"灰"},
+  {hex:"#E4572E", name:"紅"},
+  {hex:"#F2A03D", name:"橙"},
+  {hex:"#F5CE3E", name:"黃"},
+  {hex:"#3FA06B", name:"綠"},
+  {hex:"#3B82C4", name:"藍"},
+  {hex:"#8B6FD1", name:"紫"},
+  {hex:"#E1789F", name:"粉"}
+];
+
+/* 原始檔中已塗灰的座位（13、14、34、39 兩張圖都有；20 只在正、26 只在反） */
+var SEED_GREY = [13,14,20,26,34,39];
+
+var KEY = "seatmap.v1";
+var CFGKEY = "seatmap.cfg";
+var POLL_MS = 25000;
+var state = {view:"front", seats:{}, legend:{}, selected:null, query:"", cfg:{endpoint:"",token:"",me:""}};
+var pending = {};      // 已在本機改、還沒寫回試算表的座位
+var pushTimers = {};
+
+/* ============ 連線層：Google 試算表 ============ */
+function online(){ return !!(state.cfg && state.cfg.endpoint); }
+function pad2(n){ return (n<10?"0":"")+n; }
+
+function loadCfg(){
+  var c = {endpoint:"",token:"",me:""};
+  try{ c = Object.assign(c, JSON.parse(localStorage.getItem(CFGKEY)||"{}")); }catch(e){}
+  try{
+    var q = new URLSearchParams(location.search);
+    if(q.get("api")) c.endpoint = q.get("api");
+    if(q.get("token")) c.token = q.get("token");
+  }catch(e){}
+  state.cfg = c;
+}
+function saveCfg(){ try{ localStorage.setItem(CFGKEY, JSON.stringify(state.cfg)); }catch(e){} }
+
+function call(body){
+  var url = (state.cfg.endpoint||"").trim();
+  if(!url) return Promise.reject(new Error("還沒設定試算表網址"));
+  body.token = state.cfg.token || "";
+  return fetch(url,{
+    method:"POST",
+    headers:{"Content-Type":"text/plain;charset=utf-8"},
+    body:JSON.stringify(body),
+    redirect:"follow"
+  }).then(function(r){ return r.text(); }).then(function(t){
+    var j;
+    try{ j = JSON.parse(t); }
+    catch(e){ throw new Error("回應不是預期的格式，請確認部署時「誰可以存取」選了「任何人」"); }
+    if(!j.ok) throw new Error(j.error || "伺服器回報錯誤");
+    return j.data;
+  });
+}
+
+function setStatus(kind,msg){
+  var pill = document.getElementById("pill");
+  var txt  = document.getElementById("pillText");
+  if(!pill) return;
+  if(!online()){
+    pill.dataset.s="off"; txt.textContent="離線使用";
+    pill.title="資料只存在這台裝置"; return;
+  }
+  if(kind==="busy"){ pill.dataset.s="busy"; txt.textContent=msg||"同步中…"; return; }
+  if(kind==="err"){ pill.dataset.s="err"; txt.textContent="連線失敗"; pill.title=msg||""; return; }
+  var d=new Date();
+  pill.dataset.s="ok";
+  txt.textContent="已同步 "+pad2(d.getHours())+":"+pad2(d.getMinutes());
+  pill.title="每 "+Math.round(POLL_MS/1000)+" 秒自動更新一次";
+}
+
+function applyRemote(data){
+  if(!data) return;
+  var next = data.seats || {};
+  Object.keys(pending).forEach(function(n){        // 自己還沒送出的改動不要被蓋掉
+    if(state.seats[n]) next[n] = state.seats[n]; else delete next[n];
+  });
+  state.seats = next;
+  state.legend = data.legend || {};
+  save();
+  applyMarks();
+  refreshDetail();
+}
+
+function refreshDetail(){
+  if(state.selected==null) return;
+  var a = document.activeElement;
+  if(a && (a.id==="fName" || a.id==="fNote")) return;   // 別打斷正在打字的人
+  renderDetail();
+}
+
+function pull(silent){
+  if(!online()) return Promise.resolve();
+  if(!silent) setStatus("busy","讀取中…");
+  return call({action:"read"}).then(function(d){
+    applyRemote(d); setStatus("ok");
+  }).catch(function(e){ setStatus("err", e.message); });
+}
+
+function queuePush(n){
+  if(!online()) return;
+  pending[n] = true;
+  setStatus("busy","儲存中…");
+  clearTimeout(pushTimers[n]);
+  pushTimers[n] = setTimeout(function(){ sendSeat(n); }, 700);
+}
+function sendSeat(n){
+  var s = seatOf(n);
+  call({action:"saveSeat", seat:Number(n), label:s.label, color:s.color, note:s.note, by:state.cfg.me||""})
+    .then(function(d){ delete pending[n]; applyRemote(d); setStatus("ok"); })
+    .catch(function(e){ setStatus("err", e.message); });
+}
+var legendTimer=null;
+function queueLegend(hex){
+  if(!online()) return;
+  setStatus("busy","儲存中…");
+  clearTimeout(legendTimer);
+  legendTimer = setTimeout(function(){
+    call({action:"legend", hex:hex, text:state.legend[hex]||""})
+      .then(function(){ setStatus("ok"); })
+      .catch(function(e){ setStatus("err", e.message); });
+  }, 800);
+}
+function uploadLocal(replaceAll){
+  var arr = Object.keys(state.seats).map(function(n){
+    var s = state.seats[n];
+    return {seat:Number(n), label:s.label, color:s.color, note:s.note, by:state.cfg.me||""};
+  });
+  if(!arr.length && !replaceAll) return Promise.reject(new Error("這台裝置目前沒有任何標記可以上傳"));
+  setStatus("busy","上傳中…");
+  var first = replaceAll ? call({action:"clearAll"}) : Promise.resolve(null);
+  return first.then(function(){
+    return arr.length ? call({action:"saveMany", seats:arr}) : call({action:"read"});
+  }).then(function(d){ applyRemote(d); setStatus("ok"); return d; });
+}
+
+/* ============ 儲存層：artifact storage → localStorage → 記憶體 ============ */
+var memory = {};
+var store = {
+  get:function(k){
+    if(window.storage && window.storage.get){
+      return window.storage.get(k).then(function(r){return r?r.value:null;}).catch(function(){return null;});
+    }
+    try{ return Promise.resolve(localStorage.getItem(k)); }
+    catch(e){ return Promise.resolve(memory[k]||null); }
+  },
+  set:function(k,v){
+    if(window.storage && window.storage.set){
+      return window.storage.set(k,v).catch(function(){return null;});
+    }
+    try{ localStorage.setItem(k,v); }catch(e){ memory[k]=v; }
+    return Promise.resolve();
+  }
+};
+
+function save(){
+  var payload = JSON.stringify({seats:state.seats, legend:state.legend});
+  store.set(KEY,payload);
+}
+function load(){
+  return store.get(KEY).then(function(raw){
+    if(raw){
+      try{
+        var d = JSON.parse(raw);
+        state.seats = d.seats || {};
+        state.legend = d.legend || {};
+        return;
+      }catch(e){}
+    }
+    if(!online()){
+      SEED_GREY.forEach(function(n){ state.seats[n] = {color:"#A6A6A6", label:"", note:""}; });
+    }
+  });
+}
+
+/* ============ 小工具 ============ */
+function el(tag,cls,txt){
+  var d=document.createElement(tag);
+  if(cls) d.className=cls;
+  if(txt!=null) d.textContent=txt;
+  return d;
+}
+function seatOf(n){
+  return state.seats[n] || {color:"",label:"",note:""};
+}
+function setSeat(n,patch){
+  var s = Object.assign({color:"",label:"",note:""}, state.seats[n], patch);
+  if(!s.color && !s.label && !s.note) delete state.seats[n];
+  else state.seats[n]=s;
+  save();
+  queuePush(n);
+}
+function textOn(hex){
+  if(!hex) return "";
+  var h=hex.replace("#","");
+  if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+  var r=parseInt(h.substr(0,2),16)/255, g=parseInt(h.substr(2,2),16)/255, b=parseInt(h.substr(4,2),16)/255;
+  function lin(c){ return c<=0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055,2.4); }
+  var L = 0.2126*lin(r)+0.7152*lin(g)+0.0722*lin(b);
+  return L>0.5 ? "#1B2A33" : "#FFFFFF";
+}
+function colorName(hex){
+  if(!hex) return "無標記";
+  for(var i=0;i<PALETTE.length;i++){ if(PALETTE[i].hex.toLowerCase()===hex.toLowerCase()) return PALETTE[i].name; }
+  return "自訂";
+}
+function legendLabel(hex){
+  if(state.legend[hex]!=null && state.legend[hex]!=="") return state.legend[hex];
+  return colorName(hex);
+}
+var toastTimer=null;
+function toast(msg){
+  var t=document.getElementById("toast");
+  t.textContent=msg; t.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(function(){ t.classList.remove("on"); },1600);
+}
+
+/* ============ 版面計算 ============ */
+function layout(){
+  if(state.view==="front") return {rows:ROWS, gaps:GAP_AFTER_FRONT};
+  var rows = ROWS.map(function(r){ return r.slice().reverse(); }).reverse();
+  var n = ROWS.length;
+  var gaps = GAP_AFTER_FRONT.map(function(i){ return n-2-i; });
+  return {rows:rows, gaps:gaps};
+}
+
+/* ============ 畫平面圖 ============ */
+function renderPlan(){
+  var plan = document.getElementById("plan");
+  var cfg = EDGES[state.view];
+  var lay = layout();
+  plan.innerHTML="";
+
+  plan.appendChild(el("div","corner"));
+  plan.appendChild(edgeH(cfg.top));
+  plan.appendChild(el("div","corner"));
+
+  plan.appendChild(edgeV(cfg.left));
+  plan.appendChild(seatGrid(lay));
+  plan.appendChild(edgeV(cfg.right));
+
+  plan.appendChild(el("div","corner"));
+  plan.appendChild(edgeH(cfg.bottom));
+  plan.appendChild(el("div","corner"));
+
+  document.getElementById("planTitle").textContent = state.view==="front" ? "座位圖（正）" : "座位圖（反）";
+  applyMarks();
+}
+
+function edgeV(segs){
+  var wrap = el("div","edge v");
+  segs.forEach(function(s){
+    var d = el("div","seg "+s.t);
+    d.style.flex = String(s.f);
+    d.appendChild(document.createTextNode(s.x));
+    if(s.t==="door") d.appendChild(el("span","arc"));
+    wrap.appendChild(d);
+  });
+  return wrap;
+}
+function edgeH(zones){
+  var wrap = el("div","zonerow");
+  if(!zones.length){ wrap.style.minHeight="0"; return wrap; }
+  zones.forEach(function(z){ wrap.appendChild(el("div","zone "+z.side, z.x)); });
+  return wrap;
+}
+function seatGrid(lay){
+  var grid = el("div","seats");
+  grid.id="seats";
+  lay.rows.forEach(function(row,ri){
+    row.forEach(function(n,ci){
+      if(ci===3) grid.appendChild(el("div","blank"));   // 中央走道
+      grid.appendChild(n==null ? el("div","blank") : seatBtn(n));
+    });
+    if(lay.gaps.indexOf(ri)>-1) grid.appendChild(el("div","gap"));
+  });
+  return grid;
+}
+function seatBtn(n){
+  var b = el("button","seat");
+  b.type="button";
+  b.dataset.no = n;
+  b.setAttribute("aria-pressed","false");
+  b.appendChild(el("span","no",String(n)));
+  b.appendChild(el("span","nm",""));
+  b.appendChild(el("span","dot"));
+  b.addEventListener("click",function(){ select(n); });
+  return b;
+}
+
+/* 只更新顏色/姓名/備註點，不重畫整張圖 */
+function applyMarks(){
+  var q = state.query.trim().toLowerCase();
+  var btns = document.querySelectorAll(".seat");
+  Array.prototype.forEach.call(btns,function(b){
+    var n = b.dataset.no, s = seatOf(n);
+    b.style.background = s.color || "";
+    b.style.color = s.color ? textOn(s.color) : "";
+    b.style.borderColor = s.color ? "rgba(27,42,51,.35)" : "";
+    b.querySelector(".nm").textContent = s.label || "";
+    b.querySelector(".dot").style.display = s.note ? "block" : "none";
+    b.setAttribute("aria-pressed", String(state.selected===Number(n)));
+    b.title = (s.label? s.label+" · ":"") + "座位 "+n + (s.note? "\n"+s.note : "");
+    b.classList.remove("dim","hit");
+    if(q){
+      var hit = (s.label||"").toLowerCase().indexOf(q)>-1 || (s.note||"").toLowerCase().indexOf(q)>-1 || String(n)===q;
+      b.classList.add(hit?"hit":"dim");
+    }
+  });
+  var marked = Object.keys(state.seats).filter(function(k){ return state.seats[k].color; }).length;
+  document.getElementById("planMeta").textContent = "已標記 "+marked+" / 39";
+  renderLegend();
+  renderNotes();
+}
+
+/* ============ 右側：座位資料 ============ */
+function select(n){
+  state.selected = Number(n);
+  renderDetail();
+  applyMarks();
+  var b = document.querySelector('.seat[data-no="'+n+'"]');
+  if(b) b.focus({preventScroll:true});
+  if(window.matchMedia && window.matchMedia("(max-width:1000px)").matches){
+    var card = document.getElementById("detail");
+    if(card && card.parentNode) card.parentNode.scrollIntoView({behavior:"smooth",block:"start"});
+  }
+}
+
+function renderDetail(){
+  var box = document.getElementById("detail");
+  box.innerHTML="";
+  var n = state.selected;
+  if(n==null){
+    box.appendChild(el("p","empty","還沒選座位。點一下圖上的號碼就能開始標記。"));
+    return;
+  }
+  var s = seatOf(n);
+
+  var head = el("div","seathead");
+  var chip = el("div","seatchip",String(n));
+  chip.style.background = s.color || "#fff";
+  chip.style.color = s.color ? textOn(s.color) : "";
+  head.appendChild(chip);
+  var cap = el("div");
+  cap.appendChild(el("div","cap","座位號碼"));
+  cap.appendChild(el("div",null,legendLabel(s.color)));
+  head.appendChild(cap);
+  box.appendChild(head);
+
+  var lbName = el("label","f","姓名 / 標籤");
+  lbName.htmlFor="fName";
+  box.appendChild(lbName);
+  var inName = el("input");
+  inName.type="text"; inName.id="fName"; inName.value=s.label||""; inName.placeholder="例：王小明";
+  inName.addEventListener("input",function(){ setSeat(n,{label:inName.value}); applyMarks(); });
+  box.appendChild(inName);
+
+  box.appendChild(el("label","f","顏色標記"));
+  var sw = el("div","swatches");
+  PALETTE.forEach(function(p){
+    var b = el("button","sw"+(p.hex?"":" none"));
+    b.type="button";
+    b.title = p.name;
+    b.setAttribute("aria-label",p.name);
+    if(p.hex) b.style.background=p.hex;
+    b.setAttribute("aria-pressed", String((s.color||"")===p.hex));
+    b.addEventListener("click",function(){
+      setSeat(n,{color:p.hex});
+      renderDetail(); applyMarks();
+      toast(p.hex? "已標記 "+p.name : "已清除顏色");
+    });
+    sw.appendChild(b);
+  });
+  var custom = el("button","sw custom");
+  custom.type="button"; custom.title="自訂顏色";
+  custom.appendChild(document.createTextNode("自訂"));
+  var ci = el("input"); ci.type="color"; ci.value = s.color || "#3B82C4";
+  ci.addEventListener("input",function(){ setSeat(n,{color:ci.value}); renderDetail(); applyMarks(); });
+  custom.appendChild(ci);
+  sw.appendChild(custom);
+  box.appendChild(sw);
+
+  var lbNote = el("label","f","備註");
+  lbNote.htmlFor="fNote";
+  box.appendChild(lbNote);
+  var ta = el("textarea");
+  ta.id="fNote"; ta.value=s.note||""; ta.placeholder="電腦編號、分機、交接事項…";
+  ta.addEventListener("input",function(){ setSeat(n,{note:ta.value}); applyMarks(); });
+  box.appendChild(ta);
+
+  var rb = el("div","rowbtns");
+  var bClear = el("button","btn","清除這個座位");
+  bClear.type="button";
+  bClear.addEventListener("click",function(){
+    delete state.seats[n]; save(); queuePush(n); renderDetail(); applyMarks();
+    toast("座位 "+n+" 已清除");
+  });
+  var bDone = el("button","btn","收起");
+  bDone.type="button";
+  bDone.addEventListener("click",function(){ state.selected=null; renderDetail(); applyMarks(); });
+  rb.appendChild(bClear); rb.appendChild(bDone);
+  box.appendChild(rb);
+
+  if(online() && (s.by || s.at)){
+    var when = "";
+    if(s.at){
+      var d = new Date(s.at);
+      if(!isNaN(d)) when = (d.getMonth()+1)+"/"+d.getDate()+" "+pad2(d.getHours())+":"+pad2(d.getMinutes());
+    }
+    box.appendChild(el("p","meta-by","最後更新："+(s.by||"未署名")+(when?" · "+when:"")));
+  }
+}
+
+/* ============ 右側：顏色說明 ============ */
+function renderLegend(){
+  var box = document.getElementById("legend");
+  box.innerHTML="";
+  var counts={};
+  Object.keys(state.seats).forEach(function(k){
+    var c = state.seats[k].color;
+    if(c) counts[c]=(counts[c]||0)+1;
+  });
+  var hexes = PALETTE.filter(function(p){return p.hex;}).map(function(p){return p.hex;});
+  Object.keys(counts).forEach(function(c){ if(hexes.indexOf(c)<0) hexes.push(c); });
+
+  hexes.forEach(function(hex){
+    var row = el("div","lg");
+    var chip = el("div","chip"); chip.style.background=hex;
+    var inp = el("input");
+    inp.type="text";
+    inp.value = state.legend[hex]!=null ? state.legend[hex] : "";
+    inp.placeholder = colorName(hex)+"（可改成用途）";
+    inp.addEventListener("input",function(){ state.legend[hex]=inp.value; save(); queueLegend(hex); });
+    var n = el("span","n",String(counts[hex]||0));
+    row.appendChild(chip); row.appendChild(inp); row.appendChild(n);
+    box.appendChild(row);
+  });
+}
+
+/* ============ 右側 + 列印：備註一覽 ============ */
+function listed(){
+  return Object.keys(state.seats)
+    .map(Number)
+    .filter(function(n){ var s=state.seats[n]; return s.label||s.note; })
+    .sort(function(a,b){return a-b;});
+}
+function renderNotes(){
+  var box = document.getElementById("noteList");
+  box.innerHTML="";
+  var rows = listed();
+  if(!rows.length){
+    box.appendChild(el("p","empty","填了姓名或備註的座位會列在這裡。"));
+  }
+  rows.forEach(function(n){
+    var s = state.seats[n];
+    var b = el("button","nt"); b.type="button";
+    var no = el("span","nno",String(n));
+    if(s.color){ no.style.background=s.color; no.style.color=textOn(s.color); }
+    var tx = el("span","ntx");
+    if(s.label) tx.appendChild(el("b",null,s.label));
+    if(s.note) tx.appendChild(el("span",null,s.note));
+    b.appendChild(no); b.appendChild(tx);
+    b.addEventListener("click",function(){
+      select(n);
+      var t=document.querySelector('.seat[data-no="'+n+'"]');
+      if(t) t.scrollIntoView({block:"center",inline:"center",behavior:"smooth"});
+    });
+    box.appendChild(b);
+  });
+
+  var tb = document.querySelector("#printTable tbody");
+  tb.innerHTML="";
+  var hr=document.createElement("tr");
+  ["座位","姓名 / 標籤","顏色說明","備註"].forEach(function(v){
+    var th=document.createElement("th"); th.textContent=v; hr.appendChild(th);
+  });
+  tb.appendChild(hr);
+  rows.forEach(function(n){
+    var s=state.seats[n];
+    var tr=document.createElement("tr");
+    ["座位 "+n, s.label||"", legendLabel(s.color||""), s.note||""].forEach(function(v){
+      var td=document.createElement("td"); td.textContent=v; tr.appendChild(td);
+    });
+    tb.appendChild(tr);
+  });
+}
+
+/* ============ 匯出 / 還原 ============ */
+function download(name, text, mime){
+  var blob = new Blob([text],{type:mime||"text/plain;charset=utf-8"});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href=url; a.download=name; document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); },300);
+}
+function exportCsv(){
+  var lines=[["座位","姓名/標籤","顏色說明","色碼","備註"]];
+  for(var n=1;n<=39;n++){
+    var s=seatOf(n);
+    if(!s.color && !s.label && !s.note) continue;
+    lines.push([n, s.label||"", s.color?legendLabel(s.color):"", s.color||"", (s.note||"").replace(/\r?\n/g,"  ")]);
+  }
+  var csv = lines.map(function(r){
+    return r.map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(",");
+  }).join("\r\n");
+  download("座位標記.csv","\uFEFF"+csv,"text/csv;charset=utf-8");
+  toast("已匯出 CSV");
+}
+function exportJson(){
+  download("座位圖備份.json", JSON.stringify({seats:state.seats,legend:state.legend},null,2),"application/json");
+  toast("已下載備份檔");
+}
+function importJson(file){
+  var fr=new FileReader();
+  fr.onload=function(){
+    try{
+      var d=JSON.parse(fr.result);
+      if(!d || typeof d!=="object" || !d.seats) throw new Error("格式不符");
+      state.seats=d.seats; state.legend=d.legend||{};
+      save(); renderDetail(); applyMarks();
+      if(online() && confirm("要把還原的內容同時上傳到試算表嗎？（會取代試算表上目前的內容）")){
+        uploadLocal(true).then(function(){ toast("已還原並上傳"); })
+          .catch(function(e){ toast("已還原，但上傳失敗："+e.message); });
+      }else{
+        toast("已還原備份");
+      }
+    }catch(e){
+      toast("這個檔案讀不出來，請選先前下載的備份 JSON");
+    }
+  };
+  fr.readAsText(file);
+}
+
+/* ============ 綁定 ============ */
+function bind(){
+  Array.prototype.forEach.call(document.querySelectorAll(".viewtoggle button"),function(b){
+    b.addEventListener("click",function(){
+      state.view=b.dataset.view;
+      Array.prototype.forEach.call(document.querySelectorAll(".viewtoggle button"),function(x){
+        x.setAttribute("aria-selected", String(x===b));
+      });
+      renderPlan();
+    });
+  });
+  document.getElementById("search").addEventListener("input",function(e){
+    state.query=e.target.value; applyMarks();
+  });
+  document.getElementById("btnCsv").addEventListener("click",exportCsv);
+  document.getElementById("btnJson").addEventListener("click",exportJson);
+  document.getElementById("fileJson").addEventListener("change",function(e){
+    if(e.target.files && e.target.files[0]) importJson(e.target.files[0]);
+    e.target.value="";
+  });
+  document.getElementById("btnPrint").addEventListener("click",function(){ window.print(); });
+  document.getElementById("btnClear").addEventListener("click",function(){
+    var warn = online()
+      ? "清除試算表上所有人的顏色與備註？這會影響全部同事，且無法復原，建議先下載備份檔。"
+      : "清除所有顏色與備註？這個動作無法復原，建議先下載備份檔。";
+    if(!confirm(warn)) return;
+    state.seats={}; state.selected=null; pending={}; save(); renderDetail(); applyMarks();
+    if(online()){
+      setStatus("busy","清除中…");
+      call({action:"clearAll"}).then(function(d){ applyRemote(d); setStatus("ok"); toast("已全部清除"); })
+        .catch(function(e){ setStatus("err", e.message); toast("清除失敗："+e.message); });
+    } else { toast("已全部清除"); }
+  });
+  bindDialog();
+  document.addEventListener("keydown",function(e){
+    if(e.key!=="Escape") return;
+    if(document.getElementById("mask").classList.contains("on")){ closeDialog(); return; }
+    if(state.selected!=null){ state.selected=null; renderDetail(); applyMarks(); }
+  });
+}
+
+/* ============ 連線設定視窗 ============ */
+function openDialog(){
+  document.getElementById("cfgUrl").value = state.cfg.endpoint||"";
+  document.getElementById("cfgToken").value = state.cfg.token||"";
+  document.getElementById("cfgMe").value = state.cfg.me||"";
+  msg("");
+  document.getElementById("mask").classList.add("on");
+  document.getElementById("cfgUrl").focus();
+}
+function closeDialog(){ document.getElementById("mask").classList.remove("on"); }
+function msg(text,bad){
+  var m = document.getElementById("cfgMsg");
+  m.textContent = text||"";
+  m.className = "msg"+(text?" on ":" ")+(bad?"bad":"good");
+}
+function readDialog(){
+  state.cfg.endpoint = document.getElementById("cfgUrl").value.trim();
+  state.cfg.token = document.getElementById("cfgToken").value.trim();
+  state.cfg.me = document.getElementById("cfgMe").value.trim();
+  saveCfg();
+}
+function bindDialog(){
+  document.getElementById("btnLink").addEventListener("click",openDialog);
+  document.getElementById("pill").addEventListener("click",function(){
+    if(online()) pull(); else openDialog();
+  });
+  document.getElementById("cfgClose").addEventListener("click",closeDialog);
+  document.getElementById("mask").addEventListener("click",function(e){
+    if(e.target.id==="mask") closeDialog();
+  });
+
+  document.getElementById("cfgSave").addEventListener("click",function(){
+    readDialog();
+    if(!state.cfg.endpoint){ setStatus(); msg("網址是空的，已改回單機使用。"); return; }
+    if(!/\/exec\s*$/.test(state.cfg.endpoint)){
+      msg("網址結尾通常是 /exec，請確認複製到的是「網頁應用程式」的網址。", true);
+    }
+    setStatus("busy","連線中…");
+    var hadLocal = Object.keys(state.seats).length;
+    call({action:"read"}).then(function(d){
+      setStatus("ok");
+      var remote = Object.keys(d.seats||{}).length;
+      if(!remote && hadLocal){
+        if(confirm("連上了，但試算表目前是空的。\n要把這台裝置上的 "+hadLocal+" 個標記上傳過去嗎？")){
+          uploadLocal(false).then(function(){
+            msg("已上傳 "+hadLocal+" 個座位，現在大家看到的是同一份了。");
+            setTimeout(closeDialog,1400);
+          }).catch(function(e){ msg("上傳失敗："+e.message, true); });
+        }else{
+          applyRemote(d);
+          msg("已連線，畫面改為顯示試算表上的資料（目前是空的）。");
+        }
+      }else{
+        applyRemote(d);
+        msg("連上了，讀到 "+remote+" 個已標記的座位。");
+        setTimeout(closeDialog,1400);
+      }
+    }).catch(function(e){
+      setStatus("err", e.message);
+      msg("連不上："+e.message, true);
+    });
+  });
+
+  document.getElementById("cfgUpload").addEventListener("click",function(){
+    readDialog();
+    if(!online()){ msg("請先填網址並按「儲存並連線」。", true); return; }
+    if(!confirm("要用這台裝置的資料覆蓋試算表嗎？試算表上原本的內容會被取代。")) return;
+    uploadLocal(true).then(function(){
+      msg("已上傳，現在大家看到的是同一份了。");
+      toast("已上傳到試算表");
+    }).catch(function(e){ msg("上傳失敗："+e.message, true); });
+  });
+
+  document.getElementById("cfgOff").addEventListener("click",function(){
+    state.cfg.endpoint=""; saveCfg();
+    document.getElementById("cfgUrl").value="";
+    setStatus();
+    msg("已改回單機使用，資料只留在這台裝置。");
+  });
+}
+
+/* ============ 自動更新 ============ */
+function startPolling(){
+  setInterval(function(){
+    if(!online()) return;
+    if(document.hidden) return;
+    if(Object.keys(pending).length) return;
+    pull(true);
+  }, POLL_MS);
+  window.addEventListener("focus",function(){
+    if(online() && !Object.keys(pending).length) pull(true);
+  });
+}
+
+loadCfg();
+load().then(function(){
+  bind();
+  renderPlan();
+  renderDetail();
+  setStatus();
+  startPolling();
+  if(online()) pull();
+});
+})();
+</script>
+</body>
+</html>
